@@ -60,7 +60,11 @@ File::File() {
 }
 
 File::~File() {
-
+    if (m_nFd != -1) {
+        munmap(m_pMapData, m_nMaxSize);
+        close(m_nFd);
+        m_nFd = -1;
+    }
 }
 
 void 

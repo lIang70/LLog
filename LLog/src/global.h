@@ -12,7 +12,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #endif // C_OS_WIN
-
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -20,7 +19,6 @@
 #include <memory>
 #include <mutex>
 #include <thread>
-
 
 #define LMAX(a, b)      a > b ? a : b
 #define LMIN(a, b)      a < b ? a : b
