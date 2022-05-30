@@ -1,7 +1,8 @@
 #include "service.h"
 #include "buffer.h"
-#include "queue.h"
 #include "file.h"
+#include "queue.h"
+#include "tool.h"
 
 LLog::Service* LLog::Service::m_pIns = nullptr;
 
@@ -28,6 +29,7 @@ LLog::Service::Service()
     sprintf(_curFile, "%04d_%02d_%02d_%02d_%02d_%02d_%s_common", 
             gmtime.tm_year + 1900, gmtime.tm_mon + 1, gmtime.tm_mday,
             gmtime.tm_hour, gmtime.tm_min, gmtime.tm_sec, m_cHostName);
+
     m_pFile->setFileName(_curFile);
 }
 
@@ -86,7 +88,9 @@ LLog::Service::exec() {
                 if (_stream != nullptr) {
                     Buffer* _buffer = m_pBuffer->decode2Buffer(*_stream);
                     if (_buffer != nullptr) {
+                        m_mFileLock.lock();
                         m_pFile->writeBuffer(_buffer);
+                        m_mFileLock.unlock();
                         delete _buffer;
                     }
                     delete _stream;
@@ -117,6 +121,7 @@ LLog::Service::terminal() {
                 m_tStreamHandle[_size]->join();
             }
         }
+        delete m_pFile;
     } catch(const std::exception& e) {
         printf("[LLog Fatal] %s\n", e.what());
         return (-1);

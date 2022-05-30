@@ -25,8 +25,7 @@ LLOG_SPACE_BEGIN()
 		std::shared_ptr<std::thread> m_tStreamHandle[THREADMAX];
 
 		File 		*m_pFile;
-
-
+		std::mutex	m_mFileLock;
 
 	private:
 		Service();
