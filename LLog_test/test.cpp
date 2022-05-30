@@ -5,11 +5,17 @@
 #include <memory>
 #include <thread>
 
+#define MAXTHREAD 100
 clock_t start, end;
 static int LOGNUM = 20000;
 static int THREADNUM = 10;
+std::shared_ptr<std::thread> _thread[MAXTHREAD];
 
 void clean() {
+    for (size_t i = 0; i < THREADNUM; i++) {
+        if (_thread[i]->joinable())
+            _thread[i]->join();
+    }
     LLog::terminal();
     end = clock();
     printf("time: %lf s/ %dp \n", double(end - start)/CLOCKS_PER_SEC, LOGNUM * 10 * (THREADNUM / 2));
@@ -37,19 +43,19 @@ void test2() {
 
 int main(int argc, char* argv[]) {
     printf("========Welcome to LLog test!========\n");
-    LLog::setThreadNum(1);
+    LLog::setThreadNum(2);
     LLog::start();
     atexit(clean);
 
     if (argc > 1) {
-        THREADNUM = atoi(argv[1]);
+        THREADNUM = atoi(argv[1]) < MAXTHREAD ? atoi(argv[1]) : MAXTHREAD;
         LOGNUM = atoi(argv[2]);
     }
     
     start = clock();
-    for (size_t i = 0; i < THREADNUM / 2; i++) {
-        std::make_shared<std::thread>(test)->join();
-        std::make_shared<std::thread>(test2)->join();
+    for (size_t i = 0; i < THREADNUM; i+=2) {
+        _thread[i] = std::make_shared<std::thread>(test);
+        _thread[i + 1] = std::make_shared<std::thread>(test2);
     }
     return 0;
 }
