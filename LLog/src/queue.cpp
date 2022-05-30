@@ -11,7 +11,7 @@
     ptr = ptr->_next;
 #define INSERT_BACK(ptr) {      \
     BufferE* _tmp = new BufferE;\
-    _tmp->_flag.exchange(false);\
+    _tmp->_flag.exchange(false, std::memory_order_relaxed);\
     _tmp->_buffer = nullptr;    \
     _tmp->_next = ptr->_next;   \
     ptr->_next = _tmp;          \
@@ -68,11 +68,30 @@ LLog::BufferQueue::pop() {
 void 
 LLog::BufferQueue::push(LLog::__buffer* _buffer) {
     std::lock_guard<std::mutex> _guard(m_mLock);
-    if (m_nWriteIndex->_next == m_nReadIndex) { // notice: 有可能会出现链表过长
-        m_nQueueCap++;
-        INSERT_BACK(m_nWriteIndex)
+    if (m_nWriteIndex->_next->_flag) { // notice: It is possible for linked lists to be too long.
+        if (!m_bFixedSize || m_nQueueCap < 16 * BUFFERQUEUE_LEN) {
+            /*>  Double the space. */
+            for (LUINT32 i = 0; i < m_nQueueCap; i++)
+                INSERT_BACK(m_nWriteIndex)
+            m_nQueueCap<<1;
+        } else {
+            /*> Spin lock to wait.*/
+            while (m_nWriteIndex->_next->_flag);
+        }
     }
     SET_BUFFER(m_nWriteIndex, _buffer);
     NEXT_BUFFER(m_nWriteIndex);
+
+    /*> Wake up a thread. */
     m_cv.notify_one();
+}
+
+void
+LLog::BufferQueue::setFixedSize(LLBOOL _is_fixed) {
+    m_bFixedSize = _is_fixed;
+}
+
+LLBOOL
+LLog::BufferQueue::isFixedSize() {
+    return m_bFixedSize;
 }

@@ -22,6 +22,7 @@ LLOG_SPACE_BEGIN()
         BufferE*    m_nReadIndex = nullptr;
         BufferE*    m_nWriteIndex = nullptr;
         LLINT32     m_nQueueCap = 0;
+        LLBOOL      m_bFixedSize = false;
         std::condition_variable m_cv;
         std::mutex              m_mLock;
         LLINT32                 m_nStatus = BUFFERQUEUE_NORMAL;
@@ -35,6 +36,8 @@ LLOG_SPACE_BEGIN()
         void        notify();
         __buffer*   pop();
         void        push(__buffer* _buffer);
+        void        setFixedSize(LLBOOL _is_fixed = true);
+        LLBOOL      isFixedSize();
 
     };
 LLOG_SPACE_END()
