@@ -18,7 +18,7 @@ void clean() {
     }
     LLog::terminal();
     end = clock();
-    printf("time: %.3lf p/s \n", (double)(LOGNUM * 10 * (THREADNUM / 2) * CLOCKS_PER_SEC)/(end - start));
+    printf("total time: %.3lf, velocity: %.3lf p/s \n", (double)(end - start)/CLOCKS_PER_SEC, (double)(LOGNUM * 10 * (THREADNUM / 2) * CLOCKS_PER_SEC)/(end - start));
 }
 
 void test() {
