@@ -18,7 +18,7 @@ void clean() {
     }
     LLog::terminal();
     end = clock();
-    printf("time: %lf s/ %dp \n", double(end - start)/CLOCKS_PER_SEC, LOGNUM * 10 * (THREADNUM / 2));
+    printf("time: %.3lf p/s \n", (double)(LOGNUM * 10 * (THREADNUM / 2) * CLOCKS_PER_SEC)/(end - start));
 }
 
 void test() {
@@ -55,7 +55,9 @@ int main(int argc, char* argv[]) {
     start = clock();
     for (size_t i = 0; i < THREADNUM; i+=2) {
         _thread[i] = std::make_shared<std::thread>(test);
+        _thread[i]->join();
         _thread[i + 1] = std::make_shared<std::thread>(test2);
+        _thread[i + 1]->join();
     }
     return 0;
 }
