@@ -2,14 +2,13 @@
 #include "buffer.h"
 #include "file.h"
 #include "queue.h"
-#include "tool.h"
 
 LLog::Service* LLog::Service::m_pIns = nullptr;
 
 LLog::Service::Service() 
-    : m_pBuffer(new Buffer(LLog::buffer_size)), 
-      m_pStreamQueue(new LLog::BufferQueue),
+    : m_nStatus(SERIVCE_IDLE),
       m_nThreadNum(2),
+      m_pStreamQueue(new StreamBuffer),
       m_pFile(new File) {
 #ifdef C_OS_WIN
     m_nPID = GetCurrentProcessId();
@@ -82,31 +81,32 @@ LLog::Service::setThreadNum(LUINT32 _threadNum) {
 LUINT32 
 LLog::Service::exec() {
     try {
+        m_nStatus = SERIVCE_RUNNING;
         auto _func = [&] {
+            LLog::Stream _stream;
+            LUINT32      _size;
             while (true) {
-                LLog::Stream* _stream = static_cast<LLog::Stream*>(m_pStreamQueue->pop());
-                if (_stream != nullptr) {
-                    Buffer* _buffer = m_pBuffer->decode2Buffer(*_stream);
-                    if (_buffer != nullptr) {
-                        m_mFileLock.lock();
-                        m_pFile->writeBuffer(_buffer);
-                        m_mFileLock.unlock();
-                        delete _buffer;
-                    }
-                    delete _stream;
-                } else {
+                if (m_pStreamQueue->try_pop(_stream)) {
+                    auto _buffer = _stream.decode2Buffer(_size);
+                    m_mFileLock.lock();
+                    m_pFile->writeBuffer(_buffer, _size);
+                    m_mFileLock.unlock();
+                    delete[] _buffer;
+                } else if (m_nStatus == SERIVCE_STOP) {
                     break;
+                } else {
+                    std::this_thread::sleep_for(std::chrono::microseconds(50));
                 }
             }
-            m_pStreamQueue->notify();
         };
 
         for (LUINT32 _size = 0; _size < m_nThreadNum; ++_size) {
             m_tStreamHandle[_size] = std::make_shared<std::thread>(_func);
         }
     } catch(const std::exception& e) {
+        m_nStatus = SERIVCE_ERROR;
         printf("[LLog Fatal] %s\n", e.what());
-        return (-1);
+        return (SERIVCE_ERROR);
     }
     return (ZERO);
 }
@@ -114,22 +114,23 @@ LLog::Service::exec() {
 LUINT32
 LLog::Service::terminal() {
     try {
-        m_pStreamQueue->setStatus(BUFFERQUEUE_DESTROY);
-        m_pStreamQueue->notify();
+        m_nStatus = SERIVCE_STOP;
         for (LUINT32 _size = 0; _size < m_nThreadNum; ++_size) {
             if (m_tStreamHandle[_size]->joinable()) {
                 m_tStreamHandle[_size]->join();
             }
         }
+        delete m_pStreamQueue;
         delete m_pFile;
     } catch(const std::exception& e) {
+        m_nStatus = SERIVCE_ERROR;
         printf("[LLog Fatal] %s\n", e.what());
-        return (-1);
+        return (SERIVCE_ERROR);
     }
     return (ZERO);
 }
 
 void
 LLog::Service::push(LLog::Stream* _stream) {
-    m_pStreamQueue->push(_stream);
+    m_pStreamQueue->push(std::move(*_stream));
 }

@@ -3,11 +3,6 @@
 
 #include "global.h"
 
-LLOG_SPACE_BEGIN()
-    class Buffer;
-LLOG_SPACE_END()
-
-
 class File {
     static LLINT32 s_nPageSize;
 
@@ -31,7 +26,7 @@ public:
     void setFilePath(LLCHAR* _path);
     void setFileName(LLCHAR* _filename);
     void setFileMaxSize(LUINT32 _size);
-    void writeBuffer(LLog::Buffer *_buffer);
+    void writeBuffer(LLCHAR* _buffer, LUINT32 _size);
 };
 
 #endif // !FILE_H

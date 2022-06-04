@@ -21,7 +21,7 @@ LLOG_SPACE_BEGIN()
 		__buffer(__buffer&& _another) noexcept;
 		virtual ~__buffer() = default; 
 
-		virtual __buffer& operator=(__buffer& _another) noexcept;
+		virtual __buffer& operator=(const __buffer& _another) noexcept;
 		virtual __buffer& operator=(__buffer&& _another) noexcept;
 
 		virtual LUINT32 index_add(LUINT32 _size = 0);
@@ -33,6 +33,9 @@ LLOG_SPACE_BEGIN()
 	};
 
 	class Stream : public __buffer {
+	private:
+		void stringify(LLCHAR*& _buffer, LUINT32& _index, LUINT32 _size, LLCHAR* _start, const LLCHAR* const _end);
+
 	public:
 		explicit Stream(LUINT32 _size = 0);
 		~Stream();
@@ -64,23 +67,8 @@ LLOG_SPACE_BEGIN()
 			encode<Type>(_val);
 		}
 
-		void encodeString(const LLCHAR* _val);
-	};
-	
-	class Buffer : public __buffer {
-		std::mutex	m_mLock;
-
-	private:
-		void stringify(LLCHAR*& _buffer, LUINT32& _index, LUINT32 _size, LLCHAR* _start, const LLCHAR* const _end);
-
-	public:
-		explicit Buffer(LUINT32 _size = 0);
-		~Buffer();
-		
-		LLCHAR* buffer_begin() override;
-		LUINT32 index_add(LUINT32 _size = 0) override;
-
-		Buffer* decode2Buffer(Stream & _stream);
+		void 	encodeString(const LLCHAR* _val);
+		LLCHAR* decode2Buffer(LUINT32 & __size);
 	};
 
 LLOG_SPACE_END()

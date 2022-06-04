@@ -1,6 +1,4 @@
 ﻿#include "llog.h"
-#include "llog.h"
-#include "llog.h"
 #include "service.h"
 #include "buffer.h"
 
@@ -24,6 +22,7 @@ LLog::Line::Line(LLINT32 level,
 LLog::Line::~Line() {
     m_pStream->encode<LLCHAR>('\n', DataType < LLCHAR, LLog::SupportedTypes >::value);
     LLog::Service::getIns()->push(m_pStream);
+    delete m_pStream;
 }
 
 LLog::Line& 
@@ -102,11 +101,11 @@ LLog::Line::operator<<(LLDOUBLE val) {
 LLog::Level
 LLog::logLevel() {
 
-    return DEBUG;
+    return LLog::Level::DEBUG;
 }
 
 void 
-LLog::setLogLevel(Level level) {
+LLog::setLogLevel(LLog::Level level) {
     
 }
 

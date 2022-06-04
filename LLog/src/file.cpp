@@ -87,21 +87,19 @@ File::setFileMaxSize(LUINT32 _size) {
 }
 
 void 
-File::writeBuffer(LLog::Buffer *_buffer) {
+File::writeBuffer(LLCHAR* _buffer, LUINT32 _size) {
     if (m_nFd == -1) {
         rollFile();
     }
 #ifdef C_OS_WIN
     // todo
 #elif defined(C_OS_LINUX)
-    LUINT32 _size = _buffer->index_add(), 
-            _r_size = _size;
-    LLCHAR *_b = _buffer->buffer_begin();
     m_nCurLen += _size;
+    LUINT32 _r_size = _size;
     while (_size <= _r_size) {
-        memcpy(m_pMapData, _b, LMIN(_size, s_nPageSize));
+        memcpy(m_pMapData, _buffer, LMIN(_size, s_nPageSize));
         m_pMapData += LMIN(_size, s_nPageSize);
-        _b += LMIN(_size, s_nPageSize);
+        _buffer += LMIN(_size, s_nPageSize);
         _size -= s_nPageSize;
     }
     if (m_nCurLen + _r_size >= m_nMaxSize) {
