@@ -3,7 +3,7 @@
 
 #include "global.h"
 
-#define _DEBUG
+// #define _DEBUG
 
 #define RING_BUFFER_LENGTH  (1<<16)
 #define EMPTY_STATUS        (0)
@@ -22,7 +22,7 @@ public:
 
 template<typename _Ty>
 class RingBuffer {
-
+public:
     typedef struct BufferE {
         std::atomic_flag    _flag;
         _Ty                 _buffer;
@@ -31,10 +31,8 @@ class RingBuffer {
 
     BufferE*                m_pBuffer = nullptr;
     LUINT32                 m_nBufferCap = 0;
-    LUINT32                 m_nHalfCap = 0;
     std::atomic_uint64_t    m_aHead;
     std::atomic_uint64_t    m_aTail;
-    std::mutex              m_mTailLock;
 
 #ifdef _DEBUG
     std::atomic_uint64_t    __push_count;
@@ -42,19 +40,19 @@ class RingBuffer {
 #endif
 
 public:
-    RingBuffer(LUINT32 _size = RING_BUFFER_LENGTH) {
+    explicit RingBuffer(LUINT32 _size = RING_BUFFER_LENGTH) {
         m_nBufferCap = _size;
-        m_nHalfCap = m_nBufferCap>>1;
         m_pBuffer = new BufferE[_size];
         m_aHead.exchange(0, std::memory_order_relaxed);
         m_aTail.exchange(0, std::memory_order_relaxed);
+        
 #ifdef _DEBUG
         __push_count.exchange(0, std::memory_order_relaxed);
         __pop_count.exchange(0, std::memory_order_relaxed);
 #endif
     }
 
-    ~RingBuffer() {
+    virtual ~RingBuffer() {
         delete[] m_pBuffer;
 
 #ifdef _DEBUG
@@ -63,38 +61,49 @@ public:
 #endif
     }
 
-    void push(_Ty && _data) {
-        LLog::mutex_guard __guard(m_mTailLock);
-        while(m_aTail.load() - m_aHead.load() > m_nHalfCap);
-        register LUINT64 _index = m_aTail.fetch_add(1, std::memory_order_relaxed) % m_nBufferCap;
+#ifdef _DEBUG
+    void push_count_add()   {__push_count++;}
+    void pop_count_add()    {__pop_count++;}
+#endif
+
+    inline virtual void     clear() { m_aHead.exchange(0); m_aTail.exchange(0); }
+    inline virtual LLBOOL   empty() { return m_aHead == m_aTail; }
+    inline virtual LLBOOL   full()  { return m_aTail - m_aHead == m_nBufferCap; }
+
+    inline virtual void push(_Ty && _data) {
+        register LUINT64 _index = m_aTail.fetch_add(1, std::memory_order_relaxed);
+        while(_index - m_aHead > m_nBufferCap - 1);
+        _index %= m_nBufferCap;
         BufferE & _e = m_pBuffer[_index];
         SpinLock _lock(_e._flag);
         _e._buffer = std::move(_data);
         _e._status = WROTE_STATUS;
+
 #ifdef _DEBUG
         __push_count++;
 #endif
     }
 
-    void push_unlock(_Ty && _data) {
-        while(m_aTail.load() - m_aHead.load() > m_nHalfCap);
+    inline virtual void push_unlock(_Ty && _data) {
         register LUINT64 _index = m_aTail.fetch_add(1, std::memory_order_relaxed) % m_nBufferCap;
         BufferE & _e = m_pBuffer[_index];
         SpinLock _lock(_e._flag);
         _e._buffer = std::move(_data);
         _e._status = WROTE_STATUS;
+
 #ifdef _DEBUG
         __push_count++;
 #endif
     }
 
-    LLBOOL try_pop(_Ty & _data) {
+    inline virtual LLBOOL try_pop(_Ty & _data) {
         BufferE & _e = m_pBuffer[m_aHead % m_nBufferCap];
         SpinLock _lock(_e._flag);
         if (_e._status == EMPTY_STATUS) return false;
         _data = std::move(_e._buffer);
         _e._status = EMPTY_STATUS;
         m_aHead++;
+
 #ifdef _DEBUG
         __pop_count++;
 #endif

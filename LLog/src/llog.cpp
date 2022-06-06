@@ -8,7 +8,7 @@ LLog::Line::Line(LLINT32 level,
     
     LLog::Service* service = LLog::Service::getIns();
     
-    // log format: &time &hostname:&pid_&tid &level [&file:&func &line] &ctx
+    /*> log format: &time &hostname:&pid_&tid &level [&file:&func &line] &ctx */
     m_pStream->encode<LUINT64>(service->getTime());
     m_pStream->encode<LSTRING>(service->getHost());
     m_pStream->encode<LUINT32>(service->getPID());
@@ -109,18 +109,13 @@ LLog::setLogLevel(LLog::Level level) {
     
 }
 
-void 
-LLog::setThreadNum(LUINT32 _threadNum) {
-    LLog::Service::getIns()->setThreadNum(_threadNum);
-}
-
 LLINT32 
 LLog::start() {
-    return LLog::Service::getIns()->exec();
+    return LLog::Service::exec();
 }
 
 LLINT32
 LLog::terminal() {
-    return LLog::Service::getIns()->terminal();
+    return LLog::Service::terminal();
 }
 

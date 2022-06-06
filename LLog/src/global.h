@@ -15,12 +15,13 @@
 
 #include <assert.h>
 #include <atomic>
-#include <chrono>
 #include <condition_variable>
 #include <cstring>
 #include <memory>
 #include <mutex>
 #include <thread>
+
+#include <vector>
 
 #include "tool.h"
 
@@ -31,6 +32,7 @@
 #define FILEPATHLEN     1025
 #define FILELEN         81
 #define THREADMAX       16
+#define LOGLENTHMAX     1025
 
 #ifdef  ZERO
 #undef  ZERO
@@ -40,6 +42,7 @@
 #endif // ZERO
 
 LLOG_SPACE_BEGIN()
+    typedef std::condition_variable         condition;
     typedef std::lock_guard<std::mutex>     mutex_guard;
     typedef std::unique_lock<std::mutex>    unique_mutex;
     typedef std::shared_ptr<std::thread>    shared_thread;
@@ -48,9 +51,7 @@ LLOG_SPACE_BEGIN()
         = { "DEBUG    ", "INFO     ", "WARNING  ", "ERROR    ", "CRITICAL ", "FATAL    " };
 
     typedef struct LSTRING {
-        LUINT32 _size = 0;
         LLCHAR* _str = nullptr;
-
         explicit LSTRING(LLCHAR * str = nullptr) : _str(str) {}
 
     } LSTRING;
@@ -68,7 +69,7 @@ LLOG_SPACE_BEGIN()
         static constexpr const LUINT32 value = 1 + DataType < T, std::tuple < Types... > >::value;
     };
 
-    typedef std::tuple < LLCHAR, LLCHAR*, LLINT16, LLINT32, LLINT64, LUINT16, LUINT32, LUINT64, LLFLOAT, LLDOUBLE, LSTRING > SupportedTypes;
+    typedef std::tuple < LLCHAR, LLCHAR*, LLINT16, LLINT32, LLINT64, LUINT16, LUINT32, LUINT64, LLFLOAT, LLDOUBLE > SupportedTypes;
 LLOG_SPACE_END()
 
 #endif // !GLOBAL_H

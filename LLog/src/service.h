@@ -2,7 +2,6 @@
 #define LLOG_SERVICE_H
 
 #include "global.h"
-#include "queue.h"
 
 #define SERIVCE_ERROR   (-1)
 #define SERIVCE_IDLE    (0)
@@ -13,30 +12,48 @@ class File;
 
 LLOG_SPACE_BEGIN()
 
+    class buffer_base;
     class Stream;
-    typedef RingBuffer<Stream> StreamBuffer;
+    class StreamRing;
         
     class Service {
-        static Service* m_pIns;
+
+        class ring_flag {
+        public:
+            explicit ring_flag() {};
+            ~ring_flag();
+        };
+
+        static __thread     StreamRing* s_sStreamQueue;
+        static thread_local ring_flag   s_rQueueFlag;
+        static              Service*    s_pIns;
 
         LLINT8      m_nStatus;
         LLINT32     m_nPID;
         LLCHAR      m_cHostName[HOSTNAMELEN];
         LSTRING     m_sHost;
 
-        StreamBuffer    *m_pStreamQueue;
-        LUINT32         m_nThreadNum;
-        shared_thread   m_tStreamHandle[THREADMAX];
+        std::mutex                  m_mBufferLock;
+        std::vector<StreamRing*>    m_vLocalBuffer{};
+        LLINT32                     m_nBufferCount = 0;
 
-        File        *m_pFile;
-        std::mutex  m_mFileLock;
+        buffer_base *   m_bLogBuffer;
+
+        shared_thread   m_tStreamHandle;
+        
+        File *  m_pFile;
 
     private:
         Service();
         ~Service();
 
+        void allocatedLocalBuffer();
+        void mainThread();
+
     public:
         static Service* getIns();
+        static LUINT32  exec();
+        static LUINT32  terminal();
 
         LUINT32         getPID() const;
         LUINT32         getTID();
@@ -44,9 +61,6 @@ LLOG_SPACE_BEGIN()
         const LLCHAR*   getHostName() const;
         const LSTRING & getHost() const;
 
-        void    setThreadNum(LUINT32 _threadNum);
-        LUINT32 exec();
-        LUINT32 terminal();
         void    push(Stream * _stream);
 
     };
