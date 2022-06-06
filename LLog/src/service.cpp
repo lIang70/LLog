@@ -1,15 +1,25 @@
 #include "service.h"
 #include "buffer.h"
 #include "file.h"
-#include "queue.h"
-#include "tool.h"
+#include "streamring.h"
 
-LLog::Service* LLog::Service::m_pIns = nullptr;
+#define __BUFFER_SIZE__ (1024 * 1024 * 16)
+
+__thread        LLog::StreamRing*           LLog::Service::s_sStreamQueue = nullptr;
+                LLog::Service*              LLog::Service::s_pIns = nullptr;
+thread_local    LLog::Service::ring_flag    LLog::Service::s_rQueueFlag;
+
+LLog::Service::ring_flag::~ring_flag() {
+    if (s_sStreamQueue != nullptr) {
+        s_sStreamQueue->setDelete();
+        s_sStreamQueue = nullptr;
+    }
+}
 
 LLog::Service::Service() 
-    : m_pBuffer(new Buffer(LLog::buffer_size)), 
-      m_pStreamQueue(new LLog::BufferQueue),
-      m_nThreadNum(2),
+    : m_nStatus(SERIVCE_IDLE),
+      m_nBufferCount(0),
+      m_bLogBuffer(new buffer_base(__BUFFER_SIZE__)),
       m_pFile(new File) {
 #ifdef C_OS_WIN
     m_nPID = GetCurrentProcessId();
@@ -20,7 +30,6 @@ LLog::Service::Service()
     gethostname(m_cHostName, sizeof(m_cHostName));
 #endif // C_OS_WIN
     m_sHost._str = m_cHostName;
-    m_sHost._size = strlen(m_cHostName);
 
     LLCHAR  _curFile[FILEPATHLEN];
     LUINT64 _time = getTime();
@@ -34,14 +43,132 @@ LLog::Service::Service()
 }
 
 LLog::Service::~Service() {
-    terminal();
+    m_nStatus = SERIVCE_STOP;
+    if (m_tStreamHandle->joinable()) {
+        m_tStreamHandle->join();
+    }
+
+    delete m_bLogBuffer;
+    delete m_pFile;
+}
+
+void 
+LLog::Service::allocatedLocalBuffer() {
+    if (s_sStreamQueue == nullptr) {
+        LLog::unique_mutex __guard(m_mBufferLock);
+        m_nBufferCount++;
+        __guard.unlock();
+        s_sStreamQueue = new StreamRing();
+        /**
+         * > Weird C++ hack;  C++ thread_local are instantiated upon 
+         * first use thus the s_rQueueFlag has to do this in order 
+         * to instantiate this object.
+         */
+        s_rQueueFlag; 
+        __guard.lock();
+        m_vLocalBuffer.push_back(s_sStreamQueue);
+    }
+}
+
+void 
+LLog::Service::mainThread() {
+    /**
+     * > Index of the last StreamRing checked 
+     * for uncompressed log messages
+     */
+    LLINT32 _lastBufferChecked = 0;
+
+    /**
+     * > Indicates whether a compression operation 
+     * failed or not due to insufficient space in the outputBuffer
+     */
+    LLBOOL _outputBufferFull = false;
+
+    /**
+     * > Indicates that in scanning the local_thread StreamRings, 
+     * mark true if all buffers have been cleaned
+     */
+    bool _bufferclear = false;
+
+    while (m_nStatus != SERIVCE_STOP || 
+           m_bLogBuffer->index_add() != 0 ||
+           !_bufferclear) {
+        
+        _bufferclear = false;
+
+        {
+            LLog::unique_mutex __guard(m_mBufferLock);
+            LLINT32 _index = _lastBufferChecked;
+
+            /**
+             * > Scan through the threadBuffers looking for log messages
+             * to compress while the output buffer is not full.
+             */
+            while (!_outputBufferFull && !m_vLocalBuffer.empty()) {
+                LLog::StreamRing* _ringBuffer = m_vLocalBuffer[_index];
+
+                /*> If there's work, unlock to perform it */
+                if (!_ringBuffer->canBeDeleted() || !_ringBuffer->empty()) {
+                    __guard.unlock();
+                    LLCHAR* _begin = m_bLogBuffer->buffer_begin() + m_bLogBuffer->index_add();
+                    LUINT32 _size  = m_bLogBuffer->cap() - m_bLogBuffer->index_add();
+                    LLINT32 _count = _ringBuffer->try_pop_compressed(_begin, _size);
+                    // LLINT32 _count = _ringBuffer->try_pop(_begin, _size);
+                    if (_count > 0) {
+                        m_bLogBuffer->index_add(_count);
+                    }
+                    
+                    if (m_bLogBuffer->index_add() + LOGLENTHMAX >= m_bLogBuffer->cap()) {
+                        _lastBufferChecked = _index;
+                        _outputBufferFull = true;
+                    }
+                    
+                    __guard.lock();
+                } else {
+                    delete _ringBuffer;
+
+                    m_vLocalBuffer.erase(m_vLocalBuffer.begin() + _index);
+                    if (m_vLocalBuffer.empty()) {
+                        _lastBufferChecked = _index = 0;
+                        _bufferclear = true;
+                        break;
+                    }
+
+                    /**
+                     * > Back up the indexes so that we ensure we wont 
+                     * skip a buffer in our pass (and it's okay to redo one)
+                     */
+                    if (_lastBufferChecked >= _index &&
+                        _lastBufferChecked > 0) {
+                        --_lastBufferChecked;
+                    }
+                    --_index;
+                }
+
+                _index = (_index + 1) % m_vLocalBuffer.size();
+
+                /*> Completed a full pass through the buffers. */
+                if (_index == _lastBufferChecked)
+                    break;
+            }
+
+            if (_outputBufferFull) {
+                buffer_base(__BUFFER_SIZE__).swap(*(m_bLogBuffer));
+                _outputBufferFull = false;
+            } else if (_bufferclear) {
+                buffer_base(__BUFFER_SIZE__).swap(*(m_bLogBuffer));
+                _outputBufferFull = false;
+            }
+
+        }
+    }
 }
 
 LLog::Service* 
 LLog::Service::getIns() {
     static std::once_flag oc;
-    std::call_once(oc, [&] {  m_pIns = new LLog::Service; });
-    return m_pIns;
+    std::call_once(oc, [&] {  s_pIns = new LLog::Service; });
+    return s_pIns;
 }
 
 LUINT32 
@@ -61,7 +188,9 @@ LLog::Service::getTID() {
 
 LUINT64 
 LLog::Service::getTime() {
-    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();;
+    LUINT32 lo, hi;
+    __asm__ __volatile__("rdtsc" : "=a" (lo), "=d" (hi));
+    return (((LUINT64)hi << 32) | lo);
 }
 
 const LLCHAR* 
@@ -74,39 +203,18 @@ LLog::Service::getHost() const {
     return m_sHost;
 }
 
-void
-LLog::Service::setThreadNum(LUINT32 _threadNum) {
-    m_nThreadNum = LMIN(_threadNum, THREADMAX);
-}
-
 LUINT32 
 LLog::Service::exec() {
     try {
-        auto _func = [&] {
-            while (true) {
-                LLog::Stream* _stream = static_cast<LLog::Stream*>(m_pStreamQueue->pop());
-                if (_stream != nullptr) {
-                    Buffer* _buffer = m_pBuffer->decode2Buffer(*_stream);
-                    if (_buffer != nullptr) {
-                        m_mFileLock.lock();
-                        m_pFile->writeBuffer(_buffer);
-                        m_mFileLock.unlock();
-                        delete _buffer;
-                    }
-                    delete _stream;
-                } else {
-                    break;
-                }
-            }
-            m_pStreamQueue->notify();
-        };
+        if (s_pIns == nullptr) 
+            LLog::Service::getIns();
+        s_pIns->m_nStatus       = SERIVCE_RUNNING;
+        s_pIns->m_tStreamHandle = std::make_shared<std::thread>(&LLog::Service::mainThread, s_pIns);
 
-        for (LUINT32 _size = 0; _size < m_nThreadNum; ++_size) {
-            m_tStreamHandle[_size] = std::make_shared<std::thread>(_func);
-        }
     } catch(const std::exception& e) {
+        s_pIns->m_nStatus = SERIVCE_ERROR;
         printf("[LLog Fatal] %s\n", e.what());
-        return (-1);
+        return (SERIVCE_ERROR);
     }
     return (ZERO);
 }
@@ -114,22 +222,16 @@ LLog::Service::exec() {
 LUINT32
 LLog::Service::terminal() {
     try {
-        m_pStreamQueue->setStatus(BUFFERQUEUE_DESTROY);
-        m_pStreamQueue->notify();
-        for (LUINT32 _size = 0; _size < m_nThreadNum; ++_size) {
-            if (m_tStreamHandle[_size]->joinable()) {
-                m_tStreamHandle[_size]->join();
-            }
-        }
-        delete m_pFile;
+        delete s_pIns;
     } catch(const std::exception& e) {
         printf("[LLog Fatal] %s\n", e.what());
-        return (-1);
+        return (SERIVCE_ERROR);
     }
     return (ZERO);
 }
 
 void
 LLog::Service::push(LLog::Stream* _stream) {
-    m_pStreamQueue->push(_stream);
+    if (s_sStreamQueue == nullptr) allocatedLocalBuffer();
+    s_sStreamQueue->push(std::move(*_stream));
 }

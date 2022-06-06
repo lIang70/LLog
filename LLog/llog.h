@@ -57,13 +57,6 @@ LLOG_SPACE_BEGIN()
     void setLogLevel(Level level = Level::DEBUG);
 
     /**
-     * @brief Set the Thread Num object.
-     * 
-     * @param _threadNum 
-     */
-    void setThreadNum(LUINT32 _threadNum = 2);
-
-    /**
      * @brief LLog service start.
      * 
      * @return LLINT32 

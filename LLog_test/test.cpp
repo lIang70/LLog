@@ -43,7 +43,6 @@ void test2() {
 
 int main(int argc, char* argv[]) {
     printf("========Welcome to LLog test!========\n");
-    LLog::setThreadNum(2);
     LLog::start();
     atexit(clean);
 
@@ -54,8 +53,12 @@ int main(int argc, char* argv[]) {
     
     start = clock();
     for (size_t i = 0; i < THREADNUM; i+=2) {
+        // printf("_thread: %ld, %ld\n", i, i+1);
+        // fflush(stdout);
         _thread[i] = std::make_shared<std::thread>(test);
+        // _thread[i]->join();
         _thread[i + 1] = std::make_shared<std::thread>(test2);
+        // _thread[i + 1]->join();
     }
     return 0;
 }

@@ -1,6 +1,4 @@
 ﻿#include "llog.h"
-#include "llog.h"
-#include "llog.h"
 #include "service.h"
 #include "buffer.h"
 
@@ -10,7 +8,7 @@ LLog::Line::Line(LLINT32 level,
     
     LLog::Service* service = LLog::Service::getIns();
     
-    // log format: &time &hostname:&pid_&tid &level [&file:&func &line] &ctx
+    /*> log format: &time &hostname:&pid_&tid &level [&file:&func &line] &ctx */
     m_pStream->encode<LUINT64>(service->getTime());
     m_pStream->encode<LSTRING>(service->getHost());
     m_pStream->encode<LUINT32>(service->getPID());
@@ -24,6 +22,7 @@ LLog::Line::Line(LLINT32 level,
 LLog::Line::~Line() {
     m_pStream->encode<LLCHAR>('\n', DataType < LLCHAR, LLog::SupportedTypes >::value);
     LLog::Service::getIns()->push(m_pStream);
+    delete m_pStream;
 }
 
 LLog::Line& 
@@ -102,26 +101,21 @@ LLog::Line::operator<<(LLDOUBLE val) {
 LLog::Level
 LLog::logLevel() {
 
-    return DEBUG;
+    return LLog::Level::DEBUG;
 }
 
 void 
-LLog::setLogLevel(Level level) {
+LLog::setLogLevel(LLog::Level level) {
     
-}
-
-void 
-LLog::setThreadNum(LUINT32 _threadNum) {
-    LLog::Service::getIns()->setThreadNum(_threadNum);
 }
 
 LLINT32 
 LLog::start() {
-    return LLog::Service::getIns()->exec();
+    return LLog::Service::exec();
 }
 
 LLINT32
 LLog::terminal() {
-    return LLog::Service::getIns()->terminal();
+    return LLog::Service::terminal();
 }
 

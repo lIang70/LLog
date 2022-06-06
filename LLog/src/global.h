@@ -12,13 +12,18 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #endif // C_OS_WIN
+
+#include <assert.h>
 #include <atomic>
-#include <chrono>
 #include <condition_variable>
 #include <cstring>
 #include <memory>
 #include <mutex>
 #include <thread>
+
+#include <vector>
+
+#include "tool.h"
 
 #define LMAX(a, b)      a > b ? a : b
 #define LMIN(a, b)      a < b ? a : b
@@ -26,7 +31,8 @@
 #define HOSTNAMELEN     256
 #define FILEPATHLEN     1025
 #define FILELEN         81
-#define THREADMAX       8
+#define THREADMAX       16
+#define LOGLENTHMAX     1025
 
 #ifdef  ZERO
 #undef  ZERO
@@ -35,19 +41,18 @@
 #define ZERO    0
 #endif // ZERO
 
-
-namespace LLog {
-
-    const constexpr LUINT32 buffer_size = 1024 * 1024 * 4;
+LLOG_SPACE_BEGIN()
+    typedef std::condition_variable         condition;
+    typedef std::lock_guard<std::mutex>     mutex_guard;
+    typedef std::unique_lock<std::mutex>    unique_mutex;
+    typedef std::shared_ptr<std::thread>    shared_thread;
 
     const constexpr LLCHAR* llog_tags[6]
         = { "DEBUG    ", "INFO     ", "WARNING  ", "ERROR    ", "CRITICAL ", "FATAL    " };
 
     typedef struct LSTRING {
-        LUINT32 _size = 0;
         LLCHAR* _str = nullptr;
-
-        explicit LSTRING(LLCHAR * str = nullptr) : _str(str){}
+        explicit LSTRING(LLCHAR * str = nullptr) : _str(str) {}
 
     } LSTRING;
 
@@ -64,7 +69,7 @@ namespace LLog {
         static constexpr const LUINT32 value = 1 + DataType < T, std::tuple < Types... > >::value;
     };
 
-    typedef std::tuple < LLCHAR, LLCHAR*, LLINT16, LLINT32, LLINT64, LUINT16, LUINT32, LUINT64, LLFLOAT, LLDOUBLE, LSTRING > SupportedTypes;
-}
+    typedef std::tuple < LLCHAR, LLCHAR*, LLINT16, LLINT32, LLINT64, LUINT16, LUINT32, LUINT64, LLFLOAT, LLDOUBLE > SupportedTypes;
+LLOG_SPACE_END()
 
 #endif // !GLOBAL_H
