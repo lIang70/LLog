@@ -7,8 +7,8 @@
 
 #define MAXTHREAD 100
 clock_t start, end;
-static int LOGNUM = 20000;
-static int THREADNUM = 10;
+static int LOGNUM = 50000;
+static int THREADNUM = 4;
 std::shared_ptr<std::thread> _thread[MAXTHREAD];
 
 void clean() {
@@ -18,7 +18,9 @@ void clean() {
     }
     LLog::terminal();
     end = clock();
-    printf("total time: %.3lf, velocity: %.3lf p/s \n", (double)(end - start)/CLOCKS_PER_SEC, (double)(LOGNUM * 10 * (THREADNUM / 2) * CLOCKS_PER_SEC)/(end - start));
+    printf("total time: %.3lf\n", (double)(end - start)/CLOCKS_PER_SEC);
+    printf("velocity: %.3lf p/s \n", (double)(LOGNUM * 10 * (THREADNUM / 2) * CLOCKS_PER_SEC)/(end - start));
+    printf("        : %.6lf us/p\n", (double)(end - start)/(LOGNUM * 10 * (THREADNUM / 2)));
 }
 
 void test() {
@@ -53,8 +55,6 @@ int main(int argc, char* argv[]) {
     
     start = clock();
     for (size_t i = 0; i < THREADNUM; i+=2) {
-        // printf("_thread: %ld, %ld\n", i, i+1);
-        // fflush(stdout);
         _thread[i] = std::make_shared<std::thread>(test);
         // _thread[i]->join();
         _thread[i + 1] = std::make_shared<std::thread>(test2);
