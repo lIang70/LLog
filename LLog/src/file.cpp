@@ -23,18 +23,7 @@ File::rollFile() {
     }
 
     m_nFd = open(_wholepath, O_RDWR | O_CREAT, S_IRWXU);
-    lseek(m_nFd, m_nMaxSize - 1, SEEK_END);
-    if (write(m_nFd, "", 1) == -1) {
-        printf("[LLog error] File::rollFile() write failed :%m!\n");
-    }
     m_nCurLen = 0;
-    auto _p = mmap(0, m_nMaxSize, PROT_READ | PROT_WRITE, MAP_SHARED, m_nFd, 0);
-    if (_p == MAP_FAILED) {
-        printf("[LLog error] File::rollFile() apping failed :%m!\n");
-    } else {
-        m_pMapData = static_cast<LLCHAR*>(_p);
-    }
-
 }
 
 File::File() {
@@ -94,6 +83,18 @@ File::writeBuffer(LLCHAR* _buffer, LUINT32 _size) {
 #ifdef C_OS_WIN
     // todo
 #elif defined(C_OS_LINUX)
+    auto _p = mmap(0, _size, PROT_READ | PROT_WRITE, MAP_SHARED, m_nFd, 0);
+    if (_p == MAP_FAILED) {
+        printf("[LLog error] File::rollFile() apping failed :%m!\n");
+    } else {
+        m_pMapData = static_cast<LLCHAR*>(_p);
+    }
+
+    lseek(m_nFd, _size - 1, SEEK_END);
+    if (write(m_nFd, "", 1) == -1) {
+        printf("[LLog error] File::rollFile() write failed :%m!\n");
+    }
+            
     m_nCurLen += _size;
     LUINT32 _r_size = _size;
     while (_size <= _r_size) {
@@ -102,8 +103,10 @@ File::writeBuffer(LLCHAR* _buffer, LUINT32 _size) {
         _buffer += LMIN(_size, s_nPageSize);
         _size -= s_nPageSize;
     }
+
+    munmap(m_pMapData, _size);
+    
     if (m_nCurLen + _r_size >= m_nMaxSize) {
-        munmap(m_pMapData, m_nMaxSize);
         close(m_nFd);
         m_nFd = -1;
     }

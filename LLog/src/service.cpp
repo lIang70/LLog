@@ -21,24 +21,21 @@ LLog::Service::Service()
       m_nBufferCount(0),
       m_bLogBuffer(new buffer_base(__BUFFER_SIZE__)),
       m_pFile(new File) {
-#ifdef C_OS_WIN
-    m_nPID = GetCurrentProcessId();
-    DWORD size = MAX_COMPUTERNAME_LENGTH + 1;
-    GetComputerName(m_cHostName, &size);
-#elif defined(C_OS_LINUX)
-    m_nPID = getpid();
-    gethostname(m_cHostName, sizeof(m_cHostName));
-#endif // C_OS_WIN
-    m_sHost._str = m_cHostName;
+    /**
+     * > Init hostname and process id.
+     */
+    Tool::init_system_info();
 
+    /**
+     * > Init name of the log file.
+     */
     LLCHAR  _curFile[FILEPATHLEN];
-    LUINT64 _time = getTime();
+    LUINT64 _time = Tool::get_system_time();
     std::time_t time_t = _time / 1000000;
-    tm gmtime = *std::gmtime(&time_t);
+    tm* gmtime = std::gmtime(&time_t);
     sprintf(_curFile, "%04d_%02d_%02d_%02d_%02d_%02d_%s_common", 
-            gmtime.tm_year + 1900, gmtime.tm_mon + 1, gmtime.tm_mday,
-            gmtime.tm_hour, gmtime.tm_min, gmtime.tm_sec, m_cHostName);
-
+            gmtime->tm_year + 1900, gmtime->tm_mon + 1, gmtime->tm_mday,
+            gmtime->tm_hour, gmtime->tm_min, gmtime->tm_sec, Tool::get_hostname());
     m_pFile->setFileName(_curFile);
 }
 
@@ -110,10 +107,10 @@ LLog::Service::mainThread() {
                 /*> If there's work, unlock to perform it */
                 if (!_ringBuffer->canBeDeleted() || !_ringBuffer->empty()) {
                     __guard.unlock();
+                    
                     LLCHAR* _begin = m_bLogBuffer->buffer_begin() + m_bLogBuffer->index_add();
                     LUINT32 _size  = m_bLogBuffer->cap() - m_bLogBuffer->index_add();
-                    LLINT32 _count = _ringBuffer->try_pop_compressed(_begin, _size);
-                    // LLINT32 _count = _ringBuffer->try_pop(_begin, _size);
+                    LLINT32 _count = _ringBuffer->try_pop(_begin, _size);
                     if (_count > 0) {
                         m_bLogBuffer->index_add(_count);
                     }
@@ -151,56 +148,26 @@ LLog::Service::mainThread() {
                 if (_index == _lastBufferChecked)
                     break;
             }
+        }
 
-            if (_outputBufferFull) {
-                buffer_base(__BUFFER_SIZE__).swap(*(m_bLogBuffer));
-                _outputBufferFull = false;
-            } else if (_bufferclear) {
-                buffer_base(__BUFFER_SIZE__).swap(*(m_bLogBuffer));
-                _outputBufferFull = false;
-            }
-
+        if (_outputBufferFull) {
+            m_pFile->writeBuffer(m_bLogBuffer->buffer_begin(), m_bLogBuffer->index_add());
+            m_bLogBuffer->reset();
+            _outputBufferFull = false;
+        } else if (_bufferclear) {
+            m_pFile->writeBuffer(m_bLogBuffer->buffer_begin(), m_bLogBuffer->index_add());
+            m_bLogBuffer->reset();
+            _outputBufferFull = false;
         }
     }
 }
 
 LLog::Service* 
 LLog::Service::getIns() {
+    int i = sizeof(StreamRing);
     static std::once_flag oc;
     std::call_once(oc, [&] {  s_pIns = new LLog::Service; });
     return s_pIns;
-}
-
-LUINT32 
-LLog::Service::getPID() const {
-    return m_nPID;
-}
-
-LUINT32 
-LLog::Service::getTID() {
-#ifdef C_OS_WIN
-    static thread_local const LUINT32 id = GetCurrentThreadId();
-#elif defined(C_OS_LINUX)
-    static thread_local const LUINT32 id = gettid();
-#endif // C_OS_WIN
-    return id;
-}
-
-LUINT64 
-LLog::Service::getTime() {
-    LUINT32 lo, hi;
-    __asm__ __volatile__("rdtsc" : "=a" (lo), "=d" (hi));
-    return (((LUINT64)hi << 32) | lo);
-}
-
-const LLCHAR* 
-LLog::Service::getHostName() const {
-    return m_cHostName;
-}
-
-const LLog::LSTRING &
-LLog::Service::getHost() const {
-    return m_sHost;
 }
 
 LUINT32 

@@ -66,11 +66,11 @@ public:
     void pop_count_add()    {__pop_count++;}
 #endif
 
-    inline virtual void     clear() { m_aHead.exchange(0); m_aTail.exchange(0); }
-    inline virtual LLBOOL   empty() { return m_aHead == m_aTail; }
-    inline virtual LLBOOL   full()  { return m_aTail - m_aHead == m_nBufferCap; }
+    inline void     clear() { m_aHead.exchange(0); m_aTail.exchange(0); }
+    inline LLBOOL   empty() { return m_aHead == m_aTail; }
+    inline LLBOOL   full()  { return m_aTail - m_aHead == m_nBufferCap; }
 
-    inline virtual void push(_Ty && _data) {
+    virtual void push(_Ty && _data) {
         register LUINT64 _index = m_aTail.fetch_add(1, std::memory_order_relaxed);
         while(_index - m_aHead > m_nBufferCap - 1);
         _index %= m_nBufferCap;
@@ -84,7 +84,7 @@ public:
 #endif
     }
 
-    inline virtual void push_unlock(_Ty && _data) {
+    virtual void push_unlock(_Ty && _data) {
         register LUINT64 _index = m_aTail.fetch_add(1, std::memory_order_relaxed) % m_nBufferCap;
         BufferE & _e = m_pBuffer[_index];
         SpinLock _lock(_e._flag);
@@ -96,7 +96,7 @@ public:
 #endif
     }
 
-    inline virtual LLBOOL try_pop(_Ty & _data) {
+    virtual LLBOOL try_pop(_Ty & _data) {
         BufferE & _e = m_pBuffer[m_aHead % m_nBufferCap];
         SpinLock _lock(_e._flag);
         if (_e._status == EMPTY_STATUS) return false;

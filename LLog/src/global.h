@@ -7,8 +7,8 @@
 #include <windows.h>
 #elif defined(C_OS_LINUX)
 #include <unistd.h>
-#include <fcntl.h>
-#include <sys/mman.h>
+#include <fcntl.h>      // for func open()   
+#include <sys/mman.h>   // for func mmap()
 #include <sys/stat.h>
 #include <sys/types.h>
 #endif // C_OS_WIN
@@ -28,11 +28,15 @@
 #define LMAX(a, b)      a > b ? a : b
 #define LMIN(a, b)      a < b ? a : b
 #define SWAP(a, b)      { auto c = b; b = a; a = c; }
+
+#define LOGLENTHMAX     1025
+
 #define HOSTNAMELEN     256
+
 #define FILEPATHLEN     1025
 #define FILELEN         81
+
 #define THREADMAX       16
-#define LOGLENTHMAX     1025
 
 #ifdef  ZERO
 #undef  ZERO
@@ -40,6 +44,8 @@
 #else
 #define ZERO    0
 #endif // ZERO
+   
+#define LLINT64_LEN     18
 
 LLOG_SPACE_BEGIN()
     typedef std::condition_variable         condition;
@@ -48,28 +54,7 @@ LLOG_SPACE_BEGIN()
     typedef std::shared_ptr<std::thread>    shared_thread;
 
     const constexpr LLCHAR* llog_tags[6]
-        = { "DEBUG    ", "INFO     ", "WARNING  ", "ERROR    ", "CRITICAL ", "FATAL    " };
-
-    typedef struct LSTRING {
-        LLCHAR* _str = nullptr;
-        explicit LSTRING(LLCHAR * str = nullptr) : _str(str) {}
-
-    } LSTRING;
-
-    template < typename T, typename Tuple >
-    struct DataType;
-
-    template < typename T, typename ... Types >
-    struct DataType < T, std::tuple < T, Types... > > {
-        static constexpr const LUINT32 value = 0;
-    };
-
-    template < typename T, typename U, typename ... Types >
-    struct DataType < T, std::tuple < U, Types... > > {
-        static constexpr const LUINT32 value = 1 + DataType < T, std::tuple < Types... > >::value;
-    };
-
-    typedef std::tuple < LLCHAR, LLCHAR*, LLINT16, LLINT32, LLINT64, LUINT16, LUINT32, LUINT64, LLFLOAT, LLDOUBLE > SupportedTypes;
+        = { "[DEBUG    ]", "[INFO     ]", "[WARNING  ]", "[ERROR    ]", "[CRITICAL ]", "[FATAL    ]" };
 LLOG_SPACE_END()
 
 #endif // !GLOBAL_H

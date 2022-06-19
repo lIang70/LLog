@@ -38,9 +38,10 @@ Tool::get_minimum_greater(LLINT64 _num) {
 
 LUINT64 
 Tool::get_system_time() {
-    register LUINT32 lo, hi;
-    __asm__ __volatile__("rdtsc" : "=a" (lo), "=d" (hi));
-    return (((LUINT64)hi << 32) | lo);
+    // register LUINT32 lo, hi;
+    // __asm__ __volatile__("rdtsc" : "=a" (lo), "=d" (hi));
+    // return (((LUINT64)hi << 32) | lo);
+    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 }
 
 LUINT32 
@@ -83,8 +84,7 @@ Tool::format_timestamp(LLCHAR* _buffer, LUINT64 _timestamp) {
 #ifdef C_OS_WIN
     gmtime_s(&gmtime, &_time_t);
 #elif defined(C_OS_LINUX)
-    struct tm* gmtime;
-    gmtime = std::gmtime(&_time_t);
+    struct tm* gmtime = std::gmtime(&_time_t);
 #endif // C_OS_WIN
     LUINT32 pos1, pos2, pos3;
     pos1 = (gmtime->tm_year + 1900) / 100; 

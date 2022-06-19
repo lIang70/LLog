@@ -54,6 +54,11 @@ LLog::buffer_base::operator=(buffer_base&& _another) noexcept {
     return *this;
 }
 
+void
+LLog::buffer_base::reset() {
+    m_nBufferI = 0;
+}
+
 LUINT32
 LLog::buffer_base::index_add(LUINT32 _size) {
     m_nBufferI += _size;
@@ -108,68 +113,11 @@ LLog::buffer_base::swap(buffer_base& _buffer) {
     SWAP(m_nBufferCap, _buffer.m_nBufferCap)
 }
 
-#define NLLCHAR2BUFFER(_buffer, _index, nllchar, n)   \
-    memcpy(_buffer + _index, nllchar, n); _index += n;
-#define DECODESTRING(_buffer, _index, str) { \
-    auto _str = str;                         \
-    while (*_str != '\0') {                  \
-        *(_buffer + _index++) = *_str++;     \
-    }                                        \
-}                                                  
-
-void 
-LLog::Stream::stringify(LLCHAR*& _buffer, LUINT32& _index, LLCHAR* _start, const LLCHAR* const _end) {
-    LUINT32 type_id; 
-    while (_start != _end && _index < LOGLENTHMAX) {
-        type_id = static_cast<LUINT32>(*_start); _start++;
-        switch (type_id) {
-        case DataType<LLCHAR, LLog::SupportedTypes >::value:
-            _buffer[_index++] = *reinterpret_cast<LLCHAR*>(_start); _start++;
-            break;
-        case DataType<LLCHAR*, LLog::SupportedTypes >::value:
-            type_id = *reinterpret_cast<LUINT32*>(_start); _start += sizeof(LUINT32);
-            NLLCHAR2BUFFER(_buffer, _index, _start, type_id)
-            _start += type_id;
-            break;
-        case DataType<LLINT16, LLog::SupportedTypes >::value:
-            _index += Tool::num2string((LLINT64)*reinterpret_cast<LLINT16*>(_start), _buffer + _index); 
-            _start += sizeof(LLINT16);
-            break;
-        case DataType<LLINT32, LLog::SupportedTypes >::value:
-            _index += Tool::num2string((LLINT64)*reinterpret_cast<LLINT32*>(_start), _buffer + _index); 
-            _start += sizeof(LLINT32);
-            break;
-        case DataType<LLINT64, LLog::SupportedTypes >::value:
-            _index += Tool::num2string(*reinterpret_cast<LLINT64*>(_start), _buffer + _index); 
-            _start += sizeof(LLINT64);
-            break;
-        case DataType<LUINT16, LLog::SupportedTypes >::value:
-            _index += Tool::num2string((LUINT64)*reinterpret_cast<LUINT16*>(_start), _buffer + _index); 
-            _start += sizeof(LUINT16);
-            break;
-        case DataType<LUINT32, LLog::SupportedTypes >::value:
-            _index += Tool::num2string((LUINT64)*reinterpret_cast<LUINT32*>(_start), _buffer + _index); 
-            _start += sizeof(LUINT32);
-            break;
-        case DataType<LUINT64, LLog::SupportedTypes >::value:
-            _index += Tool::num2string(*reinterpret_cast<LUINT64*>(_start), _buffer + _index); 
-            _start += sizeof(LUINT64);
-            break;
-        default:
-            break;
-        }
-    }
-    if (_index >= LOGLENTHMAX)
-        _index = LOGLENTHMAX;
-        *(_buffer + _index) = '\n';
-}
-
 LLog::Stream::Stream(LUINT32 _size)
     : buffer_base(_size) {
 }
 
-LLog::Stream::~Stream() {
-}
+LLog::Stream::~Stream() = default;
 
 LLCHAR*
 LLog::Stream::buffer_begin() {
@@ -181,106 +129,94 @@ LLog::Stream::index_add(LUINT32 _size) {
     return LLog::buffer_base::index_add(_size);
 }
 
-void 
+LLog::Stream &  
 LLog::Stream::operator<<(LLCHAR _val) {
-    encode<LLCHAR>(_val, DataType < LLCHAR, LLog::SupportedTypes >::value);
+    is_needed_resize(sizeof(LLCHAR));
+    LLINT32 _index = index_add(1);
+    *(buffer_begin() + _index) = _val;
+    return *this;
 }
 
-void 
+LLog::Stream &  
 LLog::Stream::operator<<(LLCHAR* _val) {
-    encodeString(_val);
+    register LUINT32 _len = strlen(_val);
+    is_needed_resize(_len * sizeof(LLCHAR));
+    register LLINT32 _index = index_add(_len);
+    memcpy(buffer_begin() + _index, _val, _len); 
+    return *this;
 }
 
-void 
+LLog::Stream &  
 LLog::Stream::operator<<(const LLCHAR* _val) {
-    encodeString(_val);
+    register LUINT32 _len = strlen(_val);
+    is_needed_resize(_len * sizeof(LLCHAR));
+    register LLINT32 _index = index_add(_len);
+    memcpy(buffer_begin() + _index, _val, _len); 
+    return *this;
 }
 
-void 
+LLog::Stream &   
 LLog::Stream::operator<<(LLINT16 _val) {
-    encode<LLINT16>(_val, DataType < LLINT16, LLog::SupportedTypes >::value);
+    is_needed_resize((LLINT64_LEN + 3) * sizeof(LLCHAR));
+    register LLINT32 _index = index_add(0);
+    register LLINT32 _size  = Tool::num2string((LLINT64)_val, buffer_begin() + _index);
+    index_add(_size);
+    return *this;
 }
 
-void 
+LLog::Stream &   
 LLog::Stream::operator<<(LUINT16 _val) {
-    encode<LUINT16>(_val, DataType < LUINT16, LLog::SupportedTypes >::value);
+    is_needed_resize((LLINT64_LEN + 3) * sizeof(LLCHAR));
+    register LLINT32 _index = index_add(0);
+    register LLINT32 _size  = Tool::num2string((LUINT64)_val, buffer_begin() + _index);
+    index_add(_size);
+    return *this;
 }
 
-void 
+LLog::Stream &  
 LLog::Stream::operator<<(LLINT32 _val) {
-    encode<LLINT32>(_val, DataType < LLINT32, LLog::SupportedTypes >::value);
+    is_needed_resize((LLINT64_LEN + 3) * sizeof(LLCHAR));
+    register LLINT32 _index = index_add(0);
+    register LLINT32 _size  = Tool::num2string((LLINT64)_val, buffer_begin() + _index);
+    index_add(_size);
+    return *this;
 }
 
-void 
+LLog::Stream &   
 LLog::Stream::operator<<(LUINT32 _val) {
-    encode<LUINT32>(_val, DataType < LUINT32, LLog::SupportedTypes >::value);
+    is_needed_resize((LLINT64_LEN + 3) * sizeof(LLCHAR));
+    register LLINT32 _index = index_add(0);
+    register LLINT32 _size  = Tool::num2string((LUINT64)_val, buffer_begin() + _index);
+    index_add(_size);
+    return *this;
 }
 
-void 
+LLog::Stream &   
 LLog::Stream::operator<<(LLINT64 _val) {
-    encode<LLINT64>(_val, DataType < LLINT64, LLog::SupportedTypes >::value);
+    is_needed_resize((LLINT64_LEN + 3) * sizeof(LLCHAR));
+    register LLINT32 _index = index_add(0);
+    register LLINT32 _size  = Tool::num2string((LLINT64)_val, buffer_begin() + _index);
+    index_add(_size);
+    return *this;
 }
 
-void 
+LLog::Stream &   
 LLog::Stream::operator<<(LUINT64 _val) {
-    encode<LUINT64>(_val, DataType < LUINT64, LLog::SupportedTypes >::value);
+    is_needed_resize((LLINT64_LEN + 3) * sizeof(LLCHAR));
+    register LLINT32 _index = index_add(0);
+    register LLINT32 _size  = Tool::num2string((LUINT64)_val, buffer_begin() + _index);
+    index_add(_size);
+    return *this;
 }
 
-void 
+LLog::Stream &   
 LLog::Stream::operator<<(LLFLOAT _val) {
-    encode<LLFLOAT>(_val, DataType < LLFLOAT, LLog::SupportedTypes >::value);
+    // todo
+    return *this;
 }
 
-void 
+LLog::Stream &   
 LLog::Stream::operator<<(LLDOUBLE _val) {
-    encode<LLDOUBLE>(_val, DataType < LLDOUBLE, LLog::SupportedTypes >::value);
-}
-
-void 
-LLog::Stream::encodeString(const LLCHAR* _val) {
-    LUINT32 const _len = strlen(_val);
-    is_needed_resize(_len + sizeof(LUINT8) + sizeof(LUINT32));
-    encode<LUINT8>(DataType < LLCHAR*, LLog::SupportedTypes >::value);
-    encode<LUINT32>(_len);
-    LLCHAR* _b = &buffer_begin()[index_add(_len)];
-    memcpy(_b, _val, _len);
-}
-
-void
-LLog::Stream::decode2Buffer(LLCHAR* __buffer, LUINT32 & __size) {
-    LLCHAR* _buffer = buffer_begin();
-    const LLCHAR* const end = _buffer + index_add();
-    LUINT64 timestamp = *reinterpret_cast<LUINT64*>(_buffer); _buffer += sizeof(LUINT64); // len 26
-    LSTRING host      = *reinterpret_cast<LSTRING*>(_buffer); _buffer += sizeof(LSTRING); // len 9
-    LUINT32 pid       = *reinterpret_cast<LUINT32*>(_buffer); _buffer += sizeof(LUINT32); // len 7
-    LUINT32 tid       = *reinterpret_cast<LUINT32*>(_buffer); _buffer += sizeof(LUINT32); // len 7
-    LLINT32 level     = *reinterpret_cast<LLINT32*>(_buffer); _buffer += sizeof(LLINT32); // len 9
-    LSTRING file      = *reinterpret_cast<LSTRING*>(_buffer); _buffer += sizeof(LSTRING); // len 9
-    LSTRING func      = *reinterpret_cast<LSTRING*>(_buffer); _buffer += sizeof(LSTRING); // len 9
-    LLINT32 line      = *reinterpret_cast<LLINT32*>(_buffer); _buffer += sizeof(LLINT32); // len 5
-
-    __size  = 26;
-    Tool::format_timestamp(__buffer, timestamp);
-    __buffer[__size++] = ' ';
-    NLLCHAR2BUFFER(__buffer, __size, host._str, strlen(host._str))
-    __buffer[__size++] = ':';
-    __size += Tool::num2string((LLINT64)pid, __buffer + __size);
-    __buffer[__size++] = '_';
-    __size += Tool::num2string((LLINT64)tid, __buffer + __size);
-    __buffer[__size++] = ' ';
-    __buffer[__size++] = '[';
-    NLLCHAR2BUFFER(__buffer, __size, LLog::llog_tags[level], 9)
-    __buffer[__size++] = ']';
-    __buffer[__size++] = '(';
-    DECODESTRING(__buffer, __size, file._str)
-    __buffer[__size++] = ':';
-    __buffer[__size++] = ':';
-    DECODESTRING(__buffer, __size, func._str)
-    __buffer[__size++] = ':';
-    __size += Tool::num2string((LLINT64)line, __buffer + __size);
-    __buffer[__size++] = ')';
-    __buffer[__size++] = ' ';
-
-    stringify(__buffer, __size, _buffer, end);
-
+    // todo
+    return *this;
 }

@@ -28,18 +28,14 @@ LLOG_SPACE_BEGIN()
         static thread_local ring_flag   s_rQueueFlag;
         static              Service*    s_pIns;
 
-        LLINT8      m_nStatus;
-        LLINT32     m_nPID;
-        LLCHAR      m_cHostName[HOSTNAMELEN];
-        LSTRING     m_sHost;
+        LLINT8  m_nStatus;
 
         std::mutex                  m_mBufferLock;
         std::vector<StreamRing*>    m_vLocalBuffer{};
         LLINT32                     m_nBufferCount = 0;
+        shared_thread               m_tStreamHandle;
 
         buffer_base *   m_bLogBuffer;
-
-        shared_thread   m_tStreamHandle;
         
         File *  m_pFile;
 
@@ -51,17 +47,11 @@ LLOG_SPACE_BEGIN()
         void mainThread();
 
     public:
-        static Service* getIns();
-        static LUINT32  exec();
-        static LUINT32  terminal();
+        static  Service*    getIns();
+        static  LUINT32     exec();
+        static  LUINT32     terminal();
 
-        LUINT32         getPID() const;
-        LUINT32         getTID();
-        LUINT64         getTime();
-        const LLCHAR*   getHostName() const;
-        const LSTRING & getHost() const;
-
-        void    push(Stream * _stream);
+                void        push(Stream * _stream);
 
     };
 

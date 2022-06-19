@@ -2,25 +2,18 @@
 #include "service.h"
 #include "buffer.h"
 
-LLog::Line::Line(LLINT32 level,
-    const LLCHAR* file, const LLCHAR* func, const LLINT32 line)
+LLog::Line::Line(LLINT32 level, const LLCHAR* file, const LLCHAR* func, const LLINT32 line)
     : m_nLevel(level), m_pStream(new LLog::Stream()) {
-    
-    LLog::Service* service = LLog::Service::getIns();
-    
     /*> log format: &time &hostname:&pid_&tid &level [&file:&func &line] &ctx */
-    m_pStream->encode<LUINT64>(service->getTime());
-    m_pStream->encode<LSTRING>(service->getHost());
-    m_pStream->encode<LUINT32>(service->getPID());
-    m_pStream->encode<LUINT32>(service->getTID());
-    m_pStream->encode<LLINT32>(level);
-    m_pStream->encode<LSTRING>(LSTRING((LLCHAR*)file));
-    m_pStream->encode<LSTRING>(LSTRING((LLCHAR*)func));
-    m_pStream->encode<LLINT32>(line);
+    LLCHAR* _buffer = m_pStream->buffer_begin();
+    m_pStream->index_add(26);
+    Tool::format_timestamp(_buffer, Tool::get_system_time());
+    *m_pStream << ' ' << Tool::get_hostname() << ':' << Tool::get_pid() << '_' << Tool::get_tid() << ' ';
+    *m_pStream << level << " [" << file << ':' << func << ' ' << line << "] ";
 }
 
 LLog::Line::~Line() {
-    m_pStream->encode<LLCHAR>('\n', DataType < LLCHAR, LLog::SupportedTypes >::value);
+    *m_pStream << '\n';
     LLog::Service::getIns()->push(m_pStream);
     delete m_pStream;
 }
