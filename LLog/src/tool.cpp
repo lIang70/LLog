@@ -1,6 +1,25 @@
 #include "global.h"
 #include "tool.h"
 
+static constexpr char digit_pairs_2[201] = {
+    "00010203040506070809"
+    "10111213141516171819"
+    "20212223242526272829"
+    "30313233343536373839"
+    "40414243444546474849"
+    "50515253545556575859"
+    "60616263646566676869"
+    "70717273747576777879"
+    "80818283848586878889"
+    "90919293949596979899"
+};
+
+#ifdef C_OS_WIN
+static struct tm    gmtime;
+#endif // C_OS_WIN
+static LLCHAR       __host_name[HOSTNAMELEN];
+static LLINT32      __process_id = 0;
+
 LLBOOL
 Tool::check_binary(LLINT64 _num) {
     return (_num & (_num - 1)) == 0;
@@ -17,114 +36,83 @@ Tool::get_minimum_greater(LLINT64 _num) {
     return (1<<(_level+1));
 }
 
+LUINT64 
+Tool::get_system_time() {
+    register LUINT32 lo, hi;
+    __asm__ __volatile__("rdtsc" : "=a" (lo), "=d" (hi));
+    return (((LUINT64)hi << 32) | lo);
+}
 
-void 
-Tool::format_timestamp(LLCHAR* _buffer, LUINT64 _timestamp) {
-    // format: %4Y-%2M-%2D %2H:%2M:%2S.%6ms
-    std::time_t time_t = _timestamp / 1000000;
+LUINT32 
+Tool::get_tid() {
 #ifdef C_OS_WIN
-    tm gmtime;
-    gmtime_s(&gmtime, &time_t);
-    _buffer += Tool::num2string((LLINT64)gmtime.tm_year + 1900, _buffer, 4);
-    *_buffer++ = '-';
-    _buffer += Tool::num2string((LLINT64)gmtime.tm_mon + 1, _buffer, 2);
-    *_buffer++ = '-';
-    _buffer += Tool::num2string((LLINT64)gmtime.tm_mday, _buffer, 2);
-    *_buffer++ = ' ';
-    _buffer += Tool::num2string((LLINT64)gmtime.tm_hour, _buffer, 2);
-    *_buffer++ = ':';
-    _buffer += Tool::num2string((LLINT64)gmtime.tm_min, _buffer, 2);
-    *_buffer++ = ':';
-    _buffer += Tool::num2string((LLINT64)gmtime.tm_sec, _buffer, 2);
-    *_buffer++ = '.';
-    _buffer += Tool::num2string(_timestamp % 1000000, _buffer, 6);
+    static thread_local const LUINT32 id = GetCurrentThreadId();
 #elif defined(C_OS_LINUX)
-    tm gmtime = *std::gmtime(&time_t);
-    _buffer += Tool::num2string((LLINT64)gmtime.tm_year + 1900, _buffer, 4);
-    *_buffer++ = '-';
-    _buffer += Tool::num2string((LLINT64)gmtime.tm_mon + 1, _buffer, 2);
-    *_buffer++ = '-';
-    _buffer += Tool::num2string((LLINT64)gmtime.tm_mday, _buffer, 2);
-    *_buffer++ = ' ';
-    _buffer += Tool::num2string((LLINT64)gmtime.tm_hour, _buffer, 2);
-    *_buffer++ = ':';
-    _buffer += Tool::num2string((LLINT64)gmtime.tm_min, _buffer, 2);
-    *_buffer++ = ':';
-    _buffer += Tool::num2string((LLINT64)gmtime.tm_sec, _buffer, 2);
-    *_buffer++ = '.';
-    _buffer += Tool::num2string(_timestamp % 1000000, _buffer, 6);
+    static thread_local const LUINT32 id = gettid();
+#endif // C_OS_WIN
+    return id;
+}
+
+void
+Tool::init_system_info() {
+    memset(__host_name, 0, sizeof(__host_name));
+#ifdef C_OS_WIN
+    __process_id = GetCurrentProcessId();
+    DWORD size = MAX_COMPUTERNAME_LENGTH + 1;
+    GetComputerName(__host_name, &size);
+#elif defined(C_OS_LINUX)
+    __process_id = getpid();
+    gethostname(__host_name, sizeof(__host_name));
 #endif // C_OS_WIN
 }
 
-static constexpr char digit_pairs_2[201] = {
-    "00010203040506070809"
-    "10111213141516171819"
-    "20212223242526272829"
-    "30313233343536373839"
-    "40414243444546474849"
-    "50515253545556575859"
-    "60616263646566676869"
-    "70717273747576777879"
-    "80818283848586878889"
-    "90919293949596979899"
-};
+const LUINT32 
+Tool::get_pid() {
+    return __process_id;
+}
 
-static constexpr char digit_pairs_3[3001] = {
-    "000001002003004005006007008009010011012013014015016017018019"
-    "020021022023024025026027028029030031032033034035036037038039"
-    "040041042043044045046047048049050051052053054055056057058059"
-    "060061062063064065066067068069070071072073074075076077078079"
-    "080081082083084085086087088089090091092093094095096097098099"
-    "100101102103104105106107108109110111112113114115116117118119"
-    "120121122123124125126127128129130131132133134135136137138139"
-    "140141142143144145146147148149150151152153154155156157158159"
-    "160161162163164165166167168169170171172173174175176177178179"
-    "180181182183184185186187188189190191192193194195196197198199"
-    "200201202203204205206207208209210211212213214215216217218219"
-    "220221222223224225226227228229230231232233234235236237238239"
-    "240241242243244245246247248249250251252253254255256257258259"
-    "260261262263264265266267268269270271272273274275276277278279"
-    "280281282283284285286287288289290291292293294295296297298299"
-    "300301302303304305306307308309310311312313314315316317318319"
-    "320321322323324325326327328329330331332333334335336337338339"
-    "340341342343344345346347348349350351352353354355356357358359"
-    "360361362363364365366367368369370371372373374375376377378379"
-    "380381382383384385386387388389390391392393394395396397398399"
-    "400401402403404405406407408409410411412413414415416417418419"
-    "420421422423424425426427428429430431432433434435436437438439"
-    "440441442443444445446447448449450451452453454455456457458459"
-    "460461462463464465466467468469470471472473474475476477478479"
-    "480481482483484485486487488489490491492493494495496497498499"
-    "500501502503504505506507508509510511512513514515516517518519"
-    "520521522523524525526527528529530531532533534535536537538539"
-    "540541542543544545546547548549550551552553554555556557558559"
-    "560561562563564565566567568569570571572573574575576577578579"
-    "580581582583584585586587588589590591592593594595596597598599"
-    "600601602603604605606607608609610611612613614615616617618619"
-    "620621622623624625626627628629630631632633634635636637638639"
-    "640641642643644645646647648649650651652653654655656657658659"
-    "660661662663664665666667668669670671672673674675676677678679"
-    "680681682683684685686687688689690691692693694695696697698699"
-    "700701702703704705706707708709710711712713714715716717718719"
-    "720721722723724725726727728729730731732733734735736737738739"
-    "740741742743744745746747748749750751752753754755756757758759"
-    "760761762763764765766767768769770771772773774775776777778779"
-    "780781782783784785786787788789790791792793794795796797798799"
-    "800801802803804805806807808809810811812813814815816817818819"
-    "820821822823824825826827828829830831832833834835836837838839"
-    "840841842843844845846847848849850851852853854855856857858859"
-    "860861862863864865866867868869870871872873874875876877878879"
-    "880881882883884885886887888889890891892893894895896897898899"
-    "900901902903904905906907908909910911912913914915916917918919"
-    "920921922923924925926927928929930931932933934935936937938939"
-    "940941942943944945946947948949950951952953954955956957958959"
-    "960961962963964965966967968969970971972973974975976977978979"
-    "980981982983984985986987988989990991992993994995996997998999"
-};
+const LLCHAR* 
+Tool::get_hostname() {
+    return __host_name;
+}
+
+void 
+Tool::format_timestamp(LLCHAR* _buffer, LUINT64 _timestamp) {
+    std::time_t _time_t = _timestamp / 1000000;
+    std::time_t _ns = _timestamp - 1000000 * _time_t;
+#ifdef C_OS_WIN
+    gmtime_s(&gmtime, &_time_t);
+#elif defined(C_OS_LINUX)
+    struct tm* gmtime;
+    gmtime = std::gmtime(&_time_t);
+#endif // C_OS_WIN
+    LUINT32 pos1, pos2, pos3;
+    pos1 = (gmtime->tm_year + 1900) / 100; 
+    pos2 = (gmtime->tm_year + 1900) - pos1 * 100;
+    *(LLINT16*)(_buffer) = *(LLINT16*)(digit_pairs_2 + 2 * pos1); _buffer += 2;
+    *(LLINT16*)(_buffer) = *(LLINT16*)(digit_pairs_2 + 2 * pos2); _buffer += 2;
+    *_buffer++ = '-';
+    *(LLINT16*)(_buffer) = *(LLINT16*)(digit_pairs_2 + 2 * (gmtime->tm_mon + 1)); _buffer += 2;
+    *_buffer++ = '-';
+    *(LLINT16*)(_buffer) = *(LLINT16*)(digit_pairs_2 + 2 * (gmtime->tm_mday)); _buffer += 2;
+    *_buffer++ = ' ';
+    *(LLINT16*)(_buffer) = *(LLINT16*)(digit_pairs_2 + 2 * (gmtime->tm_hour)); _buffer += 2;
+    *_buffer++ = ':';
+    *(LLINT16*)(_buffer) = *(LLINT16*)(digit_pairs_2 + 2 * (gmtime->tm_min)); _buffer += 2;
+    *_buffer++ = ':';
+    *(LLINT16*)(_buffer) = *(LLINT16*)(digit_pairs_2 + 2 * (gmtime->tm_sec)); _buffer += 2;
+    *_buffer++ = '.';
+    pos1 = _ns / 10000;
+    pos2 = (_ns - pos1 * 10000) / 100;
+    pos3 = _ns - pos1 * 10000 - pos2 * 100;
+    *(LLINT16*)(_buffer) = *(LLINT16*)(digit_pairs_2 + 2 * pos1); _buffer += 2;
+    *(LLINT16*)(_buffer) = *(LLINT16*)(digit_pairs_2 + 2 * pos2); _buffer += 2;
+    *(LLINT16*)(_buffer) = *(LLINT16*)(digit_pairs_2 + 2 * pos3);
+}
 
 LUINT32 
 Tool::num2string(LLINT64 _num, LLCHAR* _buffer, LUINT32 _min_size) {
-    LUINT32 _cap = std::numeric_limits<LLINT64>::digits10 + 3, _size = 0;
+    LUINT32 _cap = LLINT64_LEN + 3, _size = 0;
     char* p = _buffer + _cap;
     if (p == nullptr)
         return (ZERO);
@@ -132,17 +120,10 @@ Tool::num2string(LLINT64 _num, LLCHAR* _buffer, LUINT32 _min_size) {
     const bool isNegative = _num < 0;
     _num = isNegative ? -_num : _num;
 
-    while (_num > 999) {
-        LUINT32 pos = _num % 1000;
-        _num /= 1000;
-        p -= 3;
-        _size += 3;
-        memcpy(p, digit_pairs_3 + 3 * pos, 3);
-    }
-
     while (_num > 99) {
-        LUINT32 pos = _num % 100;
+        LUINT64 last = _num;
         _num /= 100;
+        LUINT32 pos = last - _num * 100;
         p -= 2;
         _size += 2;
         *(LLINT16*)(p) = *(LLINT16*)(digit_pairs_2 + 2 * pos);
@@ -179,14 +160,15 @@ Tool::num2string(LLINT64 _num, LLCHAR* _buffer, LUINT32 _min_size) {
 
 LUINT32 
 Tool::num2string(LUINT64 _num, LLCHAR* _buffer, LUINT32 _min_size) {
-    LUINT32 _cap = std::numeric_limits<LLINT64>::digits10 + 2, _size = 0;
+    LUINT32 _cap = LLINT64_LEN + 2, _size = 0;
     char* p = _buffer + _cap;
     if (p == nullptr)
         return (ZERO);
     
     while (_num > 99) {
-        LUINT32 pos = _num % 100;
+        LUINT64 last = _num;
         _num /= 100;
+        LUINT32 pos = last - _num * 100;
         p -= 2;
         _size += 2;
         *(LLINT16*)(p) = *(LLINT16*)(digit_pairs_2 + 2 * pos);
